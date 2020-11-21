@@ -159,3 +159,55 @@ census_data %>%
     y = "Positive Tests Per Thousand Residents",
     caption = "Source: OpenDataPhilly COVID Tests and Cases (www.opendataphilly.org/dataset/covid-cases)\nand Shooting Victims (www.opendataphilly.org/dataset/shooting-victims)\nGraphic by @WesWeaver | wesmapping.com"
   )
+
+variables <- load_variables(2018, "acs5")
+
+# pull health insurance coverage and calculate uninsured rate
+census_insurance_data <- get_acs(
+  geography = "zcta",
+  variables = c(
+    total_pop = "B01003_001",
+    insur_pop = "B27010_001",
+    no_cov_u19 = "B27010_017",
+    no_cov_u34 = "B27010_033",
+    no_cov_u64 = "B27010_050",
+    no_cov_o65 = "B27010_066"),
+  year = 2018
+) %>%
+  filter(GEOID %in% zip_codes$CODE) %>%
+  pivot_wider(id_cols = c(GEOID), names_from = variable, values_from = estimate) %>%
+  mutate(
+    no_coverage_rate = round((no_cov_u19 + no_cov_u34 + no_cov_u64 + no_cov_o65) / insur_pop, 4)
+  )
+
+census_insurance_data %>%
+  left_join(
+    tests_by_zip %>%
+      filter(covid_status == "Positive"),
+    by = c("GEOID" = "zip_code")
+  ) %>%
+  mutate(positive_per_thousand = round(count/total_pop * 1000, 2)) %>%
+  ggplot(aes(x = no_coverage_rate, y = positive_per_thousand, size = count, label = GEOID))+
+  geom_point(aes(x = no_coverage_rate, y = positive_per_thousand), color = "#349AE9", alpha = .7)+
+  geom_smooth(method="lm", se = FALSE, color = "#349AE9")+
+  scale_size_continuous(breaks = c(500, 1000, 1500, 2000), name = "Total Positive Tests")+
+  geom_text_repel(
+    size = 3.5,
+    point.padding = 0.1,
+    min.segment.length = 0,
+    box.padding = 0.4
+  )+
+  scale_x_continuous(label = scales::percent)+
+  guides(size = guide_legend(override.aes = list(linetype = 0)))+
+  theme_minimal()+
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )+
+  labs(
+    title = "Philadelphia Positive COVID-19 Tests and Health Insurance by ZIP Code",
+    #subtitle = glue::glue("{format(min(positive_cases$collection_date), '%b %d %Y')} through {format(max(positive_cases$collection_date), '%b %d %Y')}"),
+    x = "Percent of Residents Without Health Coverage",
+    y = "Positive Tests Per Thousand Residents",
+    caption = "Source: OpenDataPhilly COVID Tests and Cases (www.opendataphilly.org/dataset/covid-cases)\nand the U.S. Census ACS Estimates for 2018 (www.census.gov/programs-surveys/acs)\nGraphic by @WesWeaver | wesmapping.com"
+  )
