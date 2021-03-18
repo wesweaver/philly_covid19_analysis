@@ -34,8 +34,8 @@ positive_cases %>%
                       label = glue::glue("Single Day High\n{format(collection_date, '%b %d, %Y')}\nCount: {count}")
                   ),
                   fontface = "bold",
-                  #nudge_x = -2.5,
-                  nudge_y = 2,
+                  nudge_x = 25,
+                  nudge_y = -5,
                   box.padding = 2.5,
                   size = 3.5,
                   segment.size = 1.1
@@ -50,10 +50,13 @@ positive_cases %>%
   )+
   labs(
     title = "Daily Positive COVID-19 Tests in Philadelphia",
+    subtitle = paste("As of", format(max(positive_cases$collection_date), "%B %d, %Y")),
     x = "Collection Date",
     y = "Count",
     caption = "Source: OpenDataPhilly COVID Tests and Cases (www.opendataphilly.org/dataset/covid-cases)\nGraphic by @WesWeaver | wesmapping.com"
   )
+
+ggsave(paste0("./output_images/daily_positive_covid_test_", max(positive_cases$collection_date), ".png"), plot = last_plot(), dpi = 600)
 
 
 # pull zip codes and tests by zip codes from opendataphilly. rename covid status with actual words.
