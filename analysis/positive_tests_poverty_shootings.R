@@ -68,7 +68,8 @@ tests_by_zip <- read.csv('https://phl.carto.com/api/v2/sql?q=SELECT+*+FROM+covid
       covid_status == "POS" ~ "Positive",
       covid_status == "NEG" ~ "Negative"
       ),
-    zip_code = as.character(zip_code)
+    zip_code = as.character(zip_code),
+    date = as.Date(as.POSIXct(etl_timestamp))
   ) %>%
   dplyr::select(-the_geom, -the_geom_webmercator)
 
@@ -77,20 +78,21 @@ census_data <- get_acs(
   variables = c(medincome = "B19013_001", total_pop = "B01003_001", total_pov = "B17001_002"),
   year = 2018
 ) %>%
-  filter(GEOID %in% zip_codes$CODE)
+  mutate(code = substr(GEOID, 3, 7)) %>%
+  filter(code %in% zip_codes$CODE)
 
 census_data <- census_data %>%
-  pivot_wider(id_cols = c(GEOID), names_from = variable, values_from = estimate) %>%
+  pivot_wider(id_cols = c(code), names_from = variable, values_from = estimate) %>%
   mutate(pov_rate= round(total_pov / total_pop, 2))
 
 census_data %>%
   left_join(
     tests_by_zip %>%
       filter(covid_status == "Positive"),
-    by = c("GEOID" = "zip_code")
+    by = c("code" = "zip_code")
   ) %>%
   mutate(positive_per_thousand = round(count/total_pop * 1000, 2)) %>%
-  ggplot(aes(x = pov_rate, y = positive_per_thousand, size = count, label = GEOID))+
+  ggplot(aes(x = pov_rate, y = positive_per_thousand, size = count, label = code))+
   geom_point(aes(x = pov_rate, y = positive_per_thousand), color = "#349AE9", alpha = .7)+
   geom_smooth(method="lm", se = FALSE, color = "#349AE9")+
   scale_size_continuous(breaks = c(500, 1000, 1500, 2000), name = "Total Positive Tests")+
@@ -109,10 +111,13 @@ census_data %>%
   )+
   labs(
     title = "Philadelphia Positive COVID-19 Tests and Poverty by ZIP Code",
+    subtitle = paste("As of", format(max(tests_by_zip$date), "%B %d, %Y")),
     x = "Poverty Rate",
     y = "Positive Tests Per Thousand Residents",
     caption = "Source: OpenDataPhilly COVID Tests and Cases (www.opendataphilly.org/dataset/covid-cases)\nand the U.S. Census ACS Estimates for 2018 (www.census.gov/programs-surveys/acs)\nGraphic by @WesWeaver | wesmapping.com"
   )
+
+ggsave(paste0("./output_images/positive_tests_by_povrate", max(tests_by_zip$date), ".png"), plot = last_plot(), dpi = 600)
 
 # get daily shooting data by zip code
 shootings <- st_read('https://phl.carto.com/api/v2/sql?q=SELECT+*+FROM+shootings&filename=shootings&format=geojson&skipfields=cartodb_id', quiet=T)
@@ -129,17 +134,17 @@ census_data %>%
       st_drop_geometry() %>%
       group_by(CODE) %>%
       summarize(shootings = n()),
-    by = c("GEOID" = "CODE")
+    by = c("code" = "CODE")
   ) %>%
   replace_na(list(shootings = 0)) %>%
   left_join(
     tests_by_zip %>%
       filter(covid_status == "Positive"),
-    by = c("GEOID" = "zip_code")
+    by = c("code" = "zip_code")
   ) %>%
   mutate(positive_per_thousand = round(count/total_pop * 1000, 2)) %>%
   mutate(shootings_per_thousand = round(shootings/total_pop * 1000, 2)) %>%
-  ggplot(aes(x = shootings_per_thousand, y = positive_per_thousand, size = count, label = GEOID))+
+  ggplot(aes(x = shootings_per_thousand, y = positive_per_thousand, size = count, label = code))+
   geom_point(aes(x = shootings_per_thousand, y = positive_per_thousand), color = "#349AE9", alpha = .7)+
   geom_smooth(method="lm", se = FALSE, color = "#349AE9")+
   scale_size_continuous(breaks = c(500, 1000, 1500, 2000), name = "Total Positive Tests")+
@@ -157,13 +162,15 @@ census_data %>%
   )+
   labs(
     title = "Philadelphia Positive COVID-19 Tests and Shootings by ZIP Code",
-    subtitle = glue::glue("{format(min(positive_cases$collection_date), '%b %d %Y')} through {format(max(positive_cases$collection_date), '%b %d %Y')}"),
+    subtitle = glue::glue("As of {format(max(tests_by_zip$date), '%B %d, %Y')}"),
     x = "Shootings Per Thousand Residents",
     y = "Positive Tests Per Thousand Residents",
     caption = "Source: OpenDataPhilly COVID Tests and Cases (www.opendataphilly.org/dataset/covid-cases)\nand Shooting Victims (www.opendataphilly.org/dataset/shooting-victims)\nGraphic by @WesWeaver | wesmapping.com"
   )
 
-variables <- load_variables(2018, "acs5")
+ggsave(paste0("./output_images/positive_cases_and_shootings", max(tests_by_zip$date), ".png"), plot = last_plot(), dpi = 600)
+
+#variables <- load_variables(2018, "acs5")
 
 # pull health insurance coverage and calculate uninsured rate
 census_insurance_data <- get_acs(
@@ -177,8 +184,9 @@ census_insurance_data <- get_acs(
     no_cov_o65 = "B27010_066"),
   year = 2018
 ) %>%
-  filter(GEOID %in% zip_codes$CODE) %>%
-  pivot_wider(id_cols = c(GEOID), names_from = variable, values_from = estimate) %>%
+  mutate(code = substr(GEOID, 3, 7)) %>%
+  filter(code %in% zip_codes$CODE) %>%
+  pivot_wider(id_cols = c(code), names_from = variable, values_from = estimate) %>%
   mutate(
     no_coverage_rate = round((no_cov_u19 + no_cov_u34 + no_cov_u64 + no_cov_o65) / insur_pop, 4)
   )
@@ -187,10 +195,10 @@ census_insurance_data %>%
   left_join(
     tests_by_zip %>%
       filter(covid_status == "Positive"),
-    by = c("GEOID" = "zip_code")
+    by = c("code" = "zip_code")
   ) %>%
   mutate(positive_per_thousand = round(count/total_pop * 1000, 2)) %>%
-  ggplot(aes(x = no_coverage_rate, y = positive_per_thousand, size = count, label = GEOID))+
+  ggplot(aes(x = no_coverage_rate, y = positive_per_thousand, size = count, label = code))+
   geom_point(aes(x = no_coverage_rate, y = positive_per_thousand), color = "#349AE9", alpha = .7)+
   geom_smooth(method="lm", se = FALSE, color = "#349AE9")+
   scale_size_continuous(breaks = c(500, 1000, 1500, 2000), name = "Total Positive Tests")+
@@ -209,8 +217,10 @@ census_insurance_data %>%
   )+
   labs(
     title = "Philadelphia Positive COVID-19 Tests and Health Insurance by ZIP Code",
-    #subtitle = glue::glue("{format(min(positive_cases$collection_date), '%b %d %Y')} through {format(max(positive_cases$collection_date), '%b %d %Y')}"),
+    subtitle = glue::glue("As of {format(max(tests_by_zip$date), '%B %d, %Y')}"),
     x = "Percent of Residents Without Health Coverage",
     y = "Positive Tests Per Thousand Residents",
     caption = "Source: OpenDataPhilly COVID Tests and Cases (www.opendataphilly.org/dataset/covid-cases)\nand the U.S. Census ACS Estimates for 2018 (www.census.gov/programs-surveys/acs)\nGraphic by @WesWeaver | wesmapping.com"
   )
+
+ggsave(paste0("./output_images/positive_tests_and_insurance_coverage", max(tests_by_zip$date), ".png"), plot = last_plot(), dpi = 600)
