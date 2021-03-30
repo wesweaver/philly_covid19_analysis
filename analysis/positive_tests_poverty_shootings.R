@@ -27,7 +27,8 @@ high_point <- positive_cases %>%
 positive_cases %>%
   ggplot()+
   geom_col(aes(x = collection_date, y = count, fill = "Positive Tests"), color = "#349AE9")+
-  geom_line(data = positive_cases, aes(x = collection_date, y = positive_7day_average, color = "7 Day Average"), size = 2)+#, color = "#1e1e1f")+
+  geom_line(data = positive_cases %>%
+              filter(collection_date <= max(collection_date - 3)), aes(x = collection_date, y = positive_7day_average, color = "7 Day Average"), size = 2)+#, color = "#1e1e1f")+
   geom_text_repel(data = high_point,
                   aes(x = collection_date,
                       y = count,
@@ -117,7 +118,7 @@ census_data %>%
     caption = "Source: OpenDataPhilly COVID Tests and Cases (www.opendataphilly.org/dataset/covid-cases)\nand the U.S. Census ACS Estimates for 2018 (www.census.gov/programs-surveys/acs)\nGraphic by @WesWeaver | wesmapping.com"
   )
 
-ggsave(paste0("./output_images/positive_tests_by_povrate", max(tests_by_zip$date), ".png"), plot = last_plot(), dpi = 600)
+ggsave(paste0("./output_images/positive_tests_by_povrate.png"), plot = last_plot(), dpi = 600)
 
 # get daily shooting data by zip code
 shootings <- st_read('https://phl.carto.com/api/v2/sql?q=SELECT+*+FROM+shootings&filename=shootings&format=geojson&skipfields=cartodb_id', quiet=T)
@@ -168,7 +169,7 @@ census_data %>%
     caption = "Source: OpenDataPhilly COVID Tests and Cases (www.opendataphilly.org/dataset/covid-cases)\nand Shooting Victims (www.opendataphilly.org/dataset/shooting-victims)\nGraphic by @WesWeaver | wesmapping.com"
   )
 
-ggsave(paste0("./output_images/positive_cases_and_shootings", max(tests_by_zip$date), ".png"), plot = last_plot(), dpi = 600)
+ggsave(paste0("./output_images/positive_cases_and_shootings.png"), plot = last_plot(), dpi = 600)
 
 #variables <- load_variables(2018, "acs5")
 
@@ -223,4 +224,4 @@ census_insurance_data %>%
     caption = "Source: OpenDataPhilly COVID Tests and Cases (www.opendataphilly.org/dataset/covid-cases)\nand the U.S. Census ACS Estimates for 2018 (www.census.gov/programs-surveys/acs)\nGraphic by @WesWeaver | wesmapping.com"
   )
 
-ggsave(paste0("./output_images/positive_tests_and_insurance_coverage", max(tests_by_zip$date), ".png"), plot = last_plot(), dpi = 600)
+ggsave(paste0("./output_images/positive_tests_and_insurance_coverage.png"), plot = last_plot(), dpi = 600)
